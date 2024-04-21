@@ -1,0 +1,15 @@
+syntax = "proto3";
+package protoproto;
+
+// from insie this folder run 
+// go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+// sudo apt-get install protobuf-compiler
+// protoc --go_out=. measurement.proto
+
+option go_package = "./protobuf";
+
+message measurement {
+  int32 voltage = 1;
+  int32 current = 2;
+  int64 epochnano = 3;
+}
