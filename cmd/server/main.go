@@ -16,18 +16,18 @@ func main() {
 			w.Header().Set("Content-Type", "application/x-protobuf")
 			w.WriteHeader(http.StatusOK)
 
-			var measurement protobuf.Measurement
+			var series protobuf.Series
 			reqBody, err := io.ReadAll(r.Body)
 			if err != nil {
 				panic(err)
 			}
-			if err := proto.Unmarshal(reqBody, &measurement); err != nil {
+			if err := proto.Unmarshal(reqBody, &series); err != nil {
 				panic(err)
 			}
-			if _, err := w.Write([]byte(measurement.String())); err != nil {
+			if _, err := w.Write([]byte(series.String())); err != nil {
 				panic(err)
 			}
-			// log.Print(measurement.String())
+			// log.Print(series.String())
 		}),
 	}
 	if err := srv.ListenAndServe(); err != nil {
