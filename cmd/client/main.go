@@ -8,10 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/samiam2013/go-pi-pmu/measurement/protobuf"
 	"github.com/spf13/pflag"
+	"google.golang.org/protobuf/proto"
 )
 
 func main() {
@@ -30,21 +29,15 @@ func main() {
 func runTestClient() {
 	// start an http client
 	// make the request
-	measurement := &protobuf.Measurement{
-		Voltage: 1,
-		Current: 1,
+	series := &protobuf.Series{
+		Measurements: []*protobuf.Series_Measurement{},
 	}
 
-	client := http.Client{}
-	req, err := http.NewRequest(http.MethodPost, "http://localhost:8080", nil)
-	if err != nil {
-		panic(err)
-	}
-	// set the content type to application/x-protobuf
-	req.Header.Set("Content-Type", "application/x-protobuf")
+	const batchSize = 1000
 
 	start := time.Now()
 	for i := 0; true; i++ {
+		measurement := &protobuf.Series_Measurement{}
 		measurement.Epochnano = time.Now().UnixNano()
 		// generate a point on the sine wave of 60 hz
 		secF := float64(time.Now().Nanosecond()) / 1_000_000_000.00
@@ -54,31 +47,42 @@ func runTestClient() {
 		measurement.Voltage = int32(math.Sin(angle/(math.Pi*2)) * 120)
 		measurement.Current = int32(math.Abs(float64(measurement.Voltage / 10)))
 		// log.Printf("Remainder: %f Angle %f Voltage: %d", remainder, angle, measurement.Voltage)
-		reqB, err := proto.Marshal(measurement)
-		if err != nil {
-			panic(err)
-		}
-		req.Body = io.NopCloser(bytes.NewBuffer(reqB))
+		// reqB, err := proto.Marshal(measurement)
+		// if err != nil {
+		// 	panic(err)
+		// }
+		series.Measurements = append(series.Measurements, measurement)
 
-		resp, err := client.Do(req)
-		if err != nil {
-			panic(err)
+		if i%batchSize == 0 {
+			reqB, err := proto.Marshal(series)
+			if err != nil {
+				panic(err)
+			}
+
+			go func(reqB []byte) {
+				client := http.Client{}
+				req, err := http.NewRequest(http.MethodPost, "http://rpi5:8080",
+					io.NopCloser(bytes.NewBuffer(reqB)))
+				if err != nil {
+					panic(err)
+				}
+				// set the content type to application/x-protobuf
+				req.Header.Set("Content-Type", "application/x-protobuf")
+
+				resp, err := client.Do(req)
+				if err != nil {
+					panic(err)
+				}
+				_ = resp
+			}(reqB[:])
+			series = &protobuf.Series{}
 		}
 
-		respB, err := io.ReadAll(resp.Body)
-		if err != nil {
-			panic(err)
-		}
-		resp.Body.Close()
-		_ = respB
-		if i%1_000 == 0 {
-			log.Printf("response: %s\n", string(respB))
-		}
-		if i%100_000 == 0 && i != 0 {
+		if i%10_000 == 0 && i != 0 {
 			d := time.Since(start)
 			avgPerMeas := d / time.Duration(i)
 			perSec := int64(time.Second / avgPerMeas)
-			log.Printf("Sent %d measurments in %v ; avg %d per sec", i, d, perSec)
+			log.Printf("Sent %d series in %v ; avg %d per sec", i, d, perSec)
 		}
 	}
 
