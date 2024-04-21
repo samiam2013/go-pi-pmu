@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"time"
 
@@ -42,12 +43,21 @@ func runTestClient() {
 	// set the content type to application/x-protobuf
 	req.Header.Set("Content-Type", "application/x-protobuf")
 
-	for {
+	start := time.Now()
+	for i := 0; true; i++ {
+		measurement.Epochnano = time.Now().UnixNano()
+		// generate a point on the sine wave of 60 hz
+		secF := float64(time.Now().Nanosecond()) / 1_000_000_000.00
+		hzWavelength := time.Second / 60.0
+		remainder := math.Mod(secF, float64(hzWavelength))
+		angle := (remainder / hzWavelength.Seconds()) * (math.Pi * 2)
+		measurement.Voltage = int32(math.Sin(angle/(math.Pi*2)) * 120)
+		measurement.Current = int32(math.Abs(float64(measurement.Voltage / 10)))
+		// log.Printf("Remainder: %f Angle %f Voltage: %d", remainder, angle, measurement.Voltage)
 		reqB, err := proto.Marshal(measurement)
 		if err != nil {
 			panic(err)
 		}
-		measurement.Epochnano = time.Now().UnixNano()
 		req.Body = io.NopCloser(bytes.NewBuffer(reqB))
 
 		resp, err := client.Do(req)
@@ -60,7 +70,16 @@ func runTestClient() {
 			panic(err)
 		}
 		resp.Body.Close()
-		log.Printf("response: %s\n", string(respB))
+		_ = respB
+		if i%1_000 == 0 {
+			log.Printf("response: %s\n", string(respB))
+		}
+		if i%100_000 == 0 && i != 0 {
+			d := time.Since(start)
+			avgPerMeas := d / time.Duration(i)
+			perSec := int64(time.Second / avgPerMeas)
+			log.Printf("Sent %d measurments in %v ; avg %d per sec", i, d, perSec)
+		}
 	}
 
 }

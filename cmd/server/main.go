@@ -2,7 +2,6 @@ package main
 
 import (
 	"io"
-	"log"
 	"net/http"
 
 	"github.com/samiam2013/go-pi-pmu/measurement/protobuf"
@@ -28,7 +27,7 @@ func main() {
 			if _, err := w.Write([]byte(measurement.String())); err != nil {
 				panic(err)
 			}
-			log.Print(measurement.String())
+			// log.Print(measurement.String())
 		}),
 	}
 	if err := srv.ListenAndServe(); err != nil {
