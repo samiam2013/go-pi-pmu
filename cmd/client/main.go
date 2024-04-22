@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"log"
 	"math"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/samiam2013/go-pi-pmu/measurement/protobuf"
 	"github.com/spf13/pflag"
+	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -33,10 +35,14 @@ func runTestClient() {
 		Measurements: []*protobuf.Series_Measurement{},
 	}
 
-	const batchSize = 1000
+	const batchSize = 100
 
 	start := time.Now()
+	limiter := rate.NewLimiter(rate.Limit(1200), 1)
 	for i := 0; true; i++ {
+		if err := limiter.Wait(context.Background()); err != nil {
+			panic(err)
+		}
 		measurement := &protobuf.Series_Measurement{}
 		measurement.Epochnano = time.Now().UnixNano()
 		// generate a point on the sine wave of 60 hz
@@ -47,10 +53,6 @@ func runTestClient() {
 		measurement.Voltage = int32(math.Sin(angle/(math.Pi*2)) * 120)
 		measurement.Current = int32(math.Abs(float64(measurement.Voltage / 10)))
 		// log.Printf("Remainder: %f Angle %f Voltage: %d", remainder, angle, measurement.Voltage)
-		// reqB, err := proto.Marshal(measurement)
-		// if err != nil {
-		// 	panic(err)
-		// }
 		series.Measurements = append(series.Measurements, measurement)
 
 		if i%batchSize == 0 {
@@ -82,7 +84,7 @@ func runTestClient() {
 			d := time.Since(start)
 			avgPerMeas := d / time.Duration(i)
 			perSec := int64(time.Second / avgPerMeas)
-			log.Printf("Sent %d series in %v ; avg %d per sec", i, d, perSec)
+			log.Printf("Sent %d measurements in %v ; avg %d per sec", i, d, perSec)
 		}
 	}
 
