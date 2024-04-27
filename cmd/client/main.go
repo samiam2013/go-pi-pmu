@@ -63,7 +63,7 @@ func runClient() {
 	// }
 	// defer pin.Halt()
 
-	pin3, err := adc.PinForChannel(ads1x15.Channel2, physic.Volt*3, 120*physic.Hertz, ads1x15.BestQuality)
+	pin3, err := adc.PinForChannel(ads1x15.Channel2, physic.Volt*3, 600*physic.Hertz, ads1x15.SaveEnergy)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -82,10 +82,14 @@ func runClient() {
 	// fmt.Println("Continuous reading")
 	c := pin3.ReadContinuous()
 
+	type sample struct {
+		data     analog.Sample
+		UnixNano int64
+	}
 	i := 0
-	results := map[int64]analog.Sample{}
+	results := []sample{}
 	for reading := range c {
-		results[time.Now().UnixNano()] = reading
+		results = append(results, sample{data: reading, UnixNano: time.Now().UnixNano()})
 		i++
 		if i > 1_200 {
 			break
@@ -94,11 +98,11 @@ func runClient() {
 	max := "0.000V"
 	min := "9.999V"
 	for time, result := range results {
-		if result.V.String() > max {
-			max = result.V.String()
+		if result.data.V.String() > max {
+			max = result.data.V.String()
 		}
-		if result.V.String() < min {
-			min = result.V.String()
+		if result.data.V.String() < min {
+			min = result.data.V.String()
 		}
 		fmt.Println(time, result)
 	}
@@ -109,8 +113,13 @@ func runClient() {
 	scaleV := 340 / diff
 	fmt.Print("scale factor", scaleV)
 	avg := minf + (diff / 2)
-	for time, result := range results {
-		voltF, _ := strconv.ParseFloat(strings.TrimRight(result.V.String(), "V"), 64)
+	last := time.Now().UnixNano()
+	for _, result := range results {
+		time := result.UnixNano
+		since := time - last
+		last = time
+		fmt.Println("delay", since/1_000_000.00, "ms")
+		voltF, _ := strconv.ParseFloat(strings.TrimRight(result.data.V.String(), "V"), 64)
 		d := -(avg - voltF)
 		scaledDiff := d * scaleV
 		fmt.Println(time, scaledDiff)
