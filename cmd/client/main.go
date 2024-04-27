@@ -3,16 +3,24 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"math"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/samiam2013/go-pi-pmu/measurement/protobuf"
 	"github.com/spf13/pflag"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/proto"
+	"periph.io/x/conn/v3/analog"
+	"periph.io/x/conn/v3/i2c/i2creg"
+	"periph.io/x/conn/v3/physic"
+	"periph.io/x/devices/v3/ads1x15"
+	"periph.io/x/host/v3"
 )
 
 func main() {
@@ -24,8 +32,90 @@ func main() {
 	case true:
 		runTestClient()
 	case false:
-		panic("normal mode not yet implemented; use -t to test")
+		runClient()
 	}
+}
+
+func runClient() {
+
+	// Make sure periph is initialized.
+	if _, err := host.Init(); err != nil {
+		log.Fatal(err)
+	}
+
+	// Open default I²C bus.
+	bus, err := i2creg.Open("")
+	if err != nil {
+		log.Fatalf("failed to open I²C: %v", err)
+	}
+	defer bus.Close()
+
+	// Create a new ADS1115 ADC.
+	adc, err := ads1x15.NewADS1115(bus, &ads1x15.DefaultOpts)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	// Obtain an analog pin from the ADC.
+	// pin, err := adc.PinForChannel(ads1x15.Channel0Minus1, 1*physic.Volt, 121*physic.Hertz, ads1x15.SaveEnergy)
+	// if err != nil {
+	// 	log.Fatalln(err)
+	// }
+	// defer pin.Halt()
+
+	pin3, err := adc.PinForChannel(ads1x15.Channel2, physic.Volt*3, 120*physic.Hertz, ads1x15.BestQuality)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	// // Read values from ADC.
+	// fmt.Println("Single reading")
+	// reading, err := pin3.Read()
+
+	// if err != nil {
+	// 	log.Fatalln(err)
+	// }
+
+	// fmt.Println(reading)
+
+	// Read values continuously from ADC.
+	// fmt.Println("Continuous reading")
+	c := pin3.ReadContinuous()
+
+	i := 0
+	results := map[int64]analog.Sample{}
+	for reading := range c {
+		results[time.Now().UnixNano()] = reading
+		i++
+		if i > 1_200 {
+			break
+		}
+	}
+	max := "0.000V"
+	min := "9.999V"
+	for time, result := range results {
+		if result.V.String() > max {
+			max = result.V.String()
+		}
+		if result.V.String() < min {
+			min = result.V.String()
+		}
+		fmt.Println(time, result)
+	}
+	fmt.Println("min", min, "max", max)
+	minf, _ := strconv.ParseFloat(strings.TrimRight(min, "V"), 64)
+	maxf, _ := strconv.ParseFloat(strings.TrimRight(max, "V"), 64)
+	diff := maxf - minf
+	scaleV := 340 / diff
+	fmt.Print("scale factor", scaleV)
+	avg := minf + (diff / 2)
+	for time, result := range results {
+		voltF, _ := strconv.ParseFloat(strings.TrimRight(result.V.String(), "V"), 64)
+		d := -(avg - voltF)
+		scaledDiff := d * scaleV
+		fmt.Println(time, scaledDiff)
+	}
+
 }
 
 func runTestClient() {
@@ -50,7 +140,7 @@ func runTestClient() {
 		hzWavelength := time.Second / 60.0
 		remainder := math.Mod(secF, float64(hzWavelength))
 		angle := (remainder / hzWavelength.Seconds()) * (math.Pi * 2)
-		measurement.Voltage = int32(math.Sin(angle/(math.Pi*2)) * 120)
+		measurement.Voltage = int32(math.Sin(angle/(math.Pi*2)) * 240)
 		measurement.Current = int32(math.Abs(float64(measurement.Voltage / 10)))
 		// log.Printf("Remainder: %f Angle %f Voltage: %d", remainder, angle, measurement.Voltage)
 		series.Measurements = append(series.Measurements, measurement)
