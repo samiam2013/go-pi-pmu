@@ -78,6 +78,10 @@ func migrateSchema(db *sql.DB) error {
 	migrations := map[int64]string{
 		1: "CREATE TABLE IF NOT EXISTS pmu ( voltage INT, current INT, epoch_nano BIGINT)",
 		2: "CREATE INDEX IF NOT EXISTS idx_epoch_nano ON pmu (epoch_nano)",
+		3: "ALTER TABLE pmu DROP COLUMN current",
+		4: "CREATE TYPE measurement_sample_kind as ('current', 'voltage')",
+		5: "ALTER TABLE pmu ADD COLUMN sample_kind measurement_sample_kind",
+		6: "ALTER TABLE pmu ADD COLUMN raw_sample BIGINT",
 	}
 	for i := int64(1); true; i++ {
 		v, ok := migrations[i]
