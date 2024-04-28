@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/samiam2013/go-pi-pmu/measurement/protobuf"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 
 	_ "github.com/lib/pq"
@@ -35,30 +36,35 @@ func main() {
 			var series protobuf.Series
 			reqBody, err := io.ReadAll(r.Body)
 			if err != nil {
-				panic(err)
+				logrus.WithError(err).Fatal("failed to read request")
 			}
 			if err := proto.Unmarshal(reqBody, &series); err != nil {
-				panic(err)
+				logrus.WithError(err).Fatal("failed to unmarshal protobuf data")
 			}
-			if _, err := w.Write([]byte(series.String())); err != nil {
-				panic(err)
+			// if _, err := w.Write([]byte(series.String())); err != nil {
+			// 	logrus.WithError(err).Fatal("")
+			// }
+			lenMeasurements := len(series.Measurements)
+			if lenMeasurements == 0 {
+				logrus.Error("No measurements in decoded series")
+				return
 			}
 
 			// build an insert for this data
 			queryPrefix := "INSERT INTO pmu(sample_kind, voltage, raw_sample, epoch_nano) VALUES"
 			var sb strings.Builder
-			sb.WriteString(queryPrefix)
 			for _, measurement := range series.Measurements {
-				sb.WriteString(fmt.Sprintf("(%d, %f, %d, %d),",
-					measurement.Samplekind,
+				sb.WriteString(fmt.Sprintf("('%s', %f, %d, %d),",
+					strings.ToLower(measurement.Samplekind.String()),
 					measurement.Voltage,
 					measurement.Rawsample,
 					measurement.Epochnano))
 			}
-			if _, err := db.Exec(strings.TrimRight(sb.String(), ",")); err != nil {
-				log.Printf("failed to insert data: %v", err)
+			query := queryPrefix + strings.TrimRight(sb.String(), ",")
+			if _, err := db.Exec(query); err != nil {
+				logrus.WithError(err).WithField("query", query).Error("failed to insert data")
 			}
-
+			logrus.Infof("Inserted %d measurments.", lenMeasurements)
 		}),
 	}
 	if err := srv.ListenAndServe(); err != nil {
@@ -79,17 +85,19 @@ func migrateSchema(db *sql.DB) error {
 		1: "CREATE TABLE IF NOT EXISTS pmu ( voltage INT, current INT, epoch_nano BIGINT)",
 		2: "CREATE INDEX IF NOT EXISTS idx_epoch_nano ON pmu (epoch_nano)",
 		3: "ALTER TABLE pmu DROP COLUMN current",
-		4: "CREATE TYPE measurement_sample_kind as ('current', 'voltage')",
+		4: "CREATE TYPE measurement_sample_kind AS ENUM ('current', 'voltage')",
 		5: "ALTER TABLE pmu ADD COLUMN sample_kind measurement_sample_kind",
 		6: "ALTER TABLE pmu ADD COLUMN raw_sample BIGINT",
 	}
 	for i := int64(1); true; i++ {
 		v, ok := migrations[i]
 		if !ok {
+			logrus.Infof("migration %d did not exist, stopping at %d", i, i-1)
 			break
 		}
 		if version >= i {
-			break
+			// logrus.Infof("migration %d below version %d, skipping", i, version)
+			continue
 		}
 		if _, err := db.Exec(v); err != nil {
 			return fmt.Errorf("failed migration %s, %w", v, err)
