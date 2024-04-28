@@ -104,17 +104,22 @@ func runClient() {
 		if result.data.V.String() < min {
 			min = result.data.V.String()
 		}
-		fmt.Println(time, result)
+		fmt.Println(time, result.data.V)
 	}
 	fmt.Println("min", min, "max", max)
 	minf, _ := strconv.ParseFloat(strings.TrimRight(min, "V"), 64)
 	maxf, _ := strconv.ParseFloat(strings.TrimRight(max, "V"), 64)
 	diff := maxf - minf
 	scaleV := 340 / diff
-	fmt.Print("scale factor", scaleV)
+	fmt.Println("scale factor ", scaleV)
 	avg := minf + (diff / 2)
 	last := time.Now().UnixNano()
+	i = 0
 	for _, result := range results {
+		i++
+		if i > 10 {
+			break
+		}
 		time := result.UnixNano
 		since := time - last
 		last = time
