@@ -2,19 +2,15 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
-	"log"
-	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/samiam2013/go-pi-pmu/measurement/protobuf"
-	"github.com/spf13/pflag"
-	"golang.org/x/time/rate"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 	"periph.io/x/conn/v3/analog"
 	"periph.io/x/conn/v3/i2c/i2creg"
@@ -25,171 +21,115 @@ import (
 
 func main() {
 	// flag allowing testing mode where it creates it's own data
-	test := pflag.BoolP("test", "t", false, "testing mode - send random measurements")
-	pflag.Parse()
+	// test := pflag.BoolP("test", "t", false, "testing mode - send random measurements")
+	// pflag.Parse()
 
-	switch *test {
-	case true:
-		runTestClient()
-	case false:
-		runClient()
-	}
+	runClient()
 }
 
 func runClient() {
-
-	// Make sure periph is initialized.
 	if _, err := host.Init(); err != nil {
-		log.Fatal(err)
+		logrus.Fatal(err)
 	}
 
 	// Open default I²C bus.
 	bus, err := i2creg.Open("")
 	if err != nil {
-		log.Fatalf("failed to open I²C: %v", err)
+		logrus.Fatalf("failed to open I²C: %v", err)
 	}
-	defer bus.Close()
+	defer func() { _ = bus.Close() }()
 
 	// Create a new ADS1115 ADC.
 	adc, err := ads1x15.NewADS1115(bus, &ads1x15.DefaultOpts)
 	if err != nil {
-		log.Fatalln(err)
+		logrus.Fatalln(err)
 	}
 
-	// Obtain an analog pin from the ADC.
-	// pin, err := adc.PinForChannel(ads1x15.Channel0Minus1, 1*physic.Volt, 121*physic.Hertz, ads1x15.SaveEnergy)
-	// if err != nil {
-	// 	log.Fatalln(err)
-	// }
-	// defer pin.Halt()
-
-	pin3, err := adc.PinForChannel(ads1x15.Channel2, physic.Volt*3, 600*physic.Hertz, ads1x15.SaveEnergy)
+	// ADC pins 0 & 1 - current reading
+	cPin, err := adc.PinForChannel(ads1x15.Channel0Minus1, 1*physic.Volt, 120*physic.Hertz, ads1x15.SaveEnergy)
 	if err != nil {
-		log.Fatalln(err)
+		logrus.Fatalln(err)
 	}
+	defer func() { _ = cPin.Halt() }()
 
-	// // Read values from ADC.
-	// fmt.Println("Single reading")
-	// reading, err := pin3.Read()
+	// ADC pin 2 - voltage reading
+	vPin, err := adc.PinForChannel(ads1x15.Channel2, 3*physic.Volt, 120*physic.Hertz, ads1x15.SaveEnergy)
+	if err != nil {
+		logrus.Fatalln(err)
+	}
+	defer func() { _ = vPin.Halt() }()
 
-	// if err != nil {
-	// 	log.Fatalln(err)
-	// }
-
-	// fmt.Println(reading)
-
-	// Read values continuously from ADC.
-	// fmt.Println("Continuous reading")
-	c := pin3.ReadContinuous()
+	vCont := vPin.ReadContinuous()
+	cCont := cPin.ReadContinuous()
 
 	type sample struct {
 		data     analog.Sample
+		kind     protobuf.SampleKind
 		UnixNano int64
 	}
-	i := 0
-	results := []sample{}
-	for reading := range c {
-		results = append(results, sample{data: reading, UnixNano: time.Now().UnixNano()})
-		i++
-		if i > 1_200 {
-			break
+
+	funnel := make(chan sample, 64)
+	go func(ret chan sample) {
+		for reading := range vCont {
+			ret <- sample{kind: protobuf.SampleKind_VOLTAGE, data: reading, UnixNano: time.Now().UnixNano()}
+		}
+	}(funnel)
+	go func(ret chan sample) {
+		for reading := range cCont {
+			ret <- sample{kind: protobuf.SampleKind_CURRENT, data: reading, UnixNano: time.Now().UnixNano()}
+		}
+	}(funnel)
+
+	series := &protobuf.Series{}
+	for smpl := range funnel {
+		// logrus.Printf("%+v", smpl)
+		f, err := strconv.ParseFloat(strings.TrimRight(smpl.data.V.String(), "µmV"), 64)
+		if err != nil {
+			logrus.WithError(err).Error("Could not parse voltage: ", smpl.data.V.String())
+		}
+		measurement := &protobuf.Measurement{
+			Samplekind: smpl.kind,
+			Voltage:    f,
+			Rawsample:  int64(smpl.data.Raw),
+			Epochnano:  time.Now().Unix(),
+		}
+
+		series.Measurements = append(series.Measurements, measurement)
+		if len(series.Measurements) > 1024 {
+			go func(data *protobuf.Series) {
+				if err := send(series); err != nil {
+					logrus.WithError(err).Error("Failed to send series")
+				}
+			}(series) // pass it on the stack so it can't remove the reference
+			series = &protobuf.Series{}
 		}
 	}
-	max := "0.000V"
-	min := "9.999V"
-	for time, result := range results {
-		if result.data.V.String() > max {
-			max = result.data.V.String()
-		}
-		if result.data.V.String() < min {
-			min = result.data.V.String()
-		}
-		fmt.Println(time, result.data.V)
-	}
-	fmt.Println("min", min, "max", max)
-	minf, _ := strconv.ParseFloat(strings.TrimRight(min, "V"), 64)
-	maxf, _ := strconv.ParseFloat(strings.TrimRight(max, "V"), 64)
-	diff := maxf - minf
-	scaleV := 340 / diff
-	fmt.Println("scale factor ", scaleV)
-	avg := minf + (diff / 2)
-	last := time.Now().UnixNano()
-	i = 0
-	for _, result := range results {
-		i++
-		if i > 10 {
-			break
-		}
-		time := result.UnixNano
-		since := time - last
-		last = time
-		fmt.Println("delay", since/1_000_000.00, "ms")
-		voltF, _ := strconv.ParseFloat(strings.TrimRight(result.data.V.String(), "V"), 64)
-		d := -(avg - voltF)
-		scaledDiff := d * scaleV
-		fmt.Println(time, scaledDiff)
+}
+
+func send(data *protobuf.Series) error {
+	reqB, err := proto.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("failed marshalling series for send: %w", err)
 	}
 
+	client := http.Client{}
+	req, err := http.NewRequest(http.MethodPost, "http://rpi5:8080",
+		io.NopCloser(bytes.NewBuffer(reqB)))
+	if err != nil {
+		return fmt.Errorf("failed to make request for send: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-protobuf")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("faild to execude request for send: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("response code after sending not ok: %w", err)
+	}
+	return nil
 }
 
 func runTestClient() {
-	// start an http client
-	// make the request
-	series := &protobuf.Series{
-		Measurements: []*protobuf.Series_Measurement{},
-	}
-
-	const batchSize = 100
-
-	start := time.Now()
-	limiter := rate.NewLimiter(rate.Limit(1200), 1)
-	for i := 0; true; i++ {
-		if err := limiter.Wait(context.Background()); err != nil {
-			panic(err)
-		}
-		measurement := &protobuf.Series_Measurement{}
-		measurement.Epochnano = time.Now().UnixNano()
-		// generate a point on the sine wave of 60 hz
-		secF := float64(time.Now().Nanosecond()) / 1_000_000_000.00
-		hzWavelength := time.Second / 60.0
-		remainder := math.Mod(secF, float64(hzWavelength))
-		angle := (remainder / hzWavelength.Seconds()) * (math.Pi * 2)
-		measurement.Voltage = int32(math.Sin(angle/(math.Pi*2)) * 240)
-		measurement.Current = int32(math.Abs(float64(measurement.Voltage / 10)))
-		// log.Printf("Remainder: %f Angle %f Voltage: %d", remainder, angle, measurement.Voltage)
-		series.Measurements = append(series.Measurements, measurement)
-
-		if i%batchSize == 0 {
-			reqB, err := proto.Marshal(series)
-			if err != nil {
-				panic(err)
-			}
-
-			go func(reqB []byte) {
-				client := http.Client{}
-				req, err := http.NewRequest(http.MethodPost, "http://rpi5:8080",
-					io.NopCloser(bytes.NewBuffer(reqB)))
-				if err != nil {
-					panic(err)
-				}
-				// set the content type to application/x-protobuf
-				req.Header.Set("Content-Type", "application/x-protobuf")
-
-				resp, err := client.Do(req)
-				if err != nil {
-					panic(err)
-				}
-				_ = resp
-			}(reqB[:])
-			series = &protobuf.Series{}
-		}
-
-		if i%10_000 == 0 && i != 0 {
-			d := time.Since(start)
-			avgPerMeas := d / time.Duration(i)
-			perSec := int64(time.Second / avgPerMeas)
-			log.Printf("Sent %d measurements in %v ; avg %d per sec", i, d, perSec)
-		}
-	}
-
+	// TODO: maybe re-implement this?
 }

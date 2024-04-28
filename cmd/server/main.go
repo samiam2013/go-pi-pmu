@@ -45,12 +45,15 @@ func main() {
 			}
 
 			// build an insert for this data
-			queryPrefix := "INSERT INTO pmu(voltage, current, epoch_nano) VALUES"
+			queryPrefix := "INSERT INTO pmu(sample_kind, voltage, raw_sample, epoch_nano) VALUES"
 			var sb strings.Builder
 			sb.WriteString(queryPrefix)
 			for _, measurement := range series.Measurements {
-				sb.WriteString(fmt.Sprintf("(%d, %d, %d),",
-					measurement.Voltage, measurement.Current, measurement.Epochnano))
+				sb.WriteString(fmt.Sprintf("(%d, %f, %d, %d),",
+					measurement.Samplekind,
+					measurement.Voltage,
+					measurement.Rawsample,
+					measurement.Epochnano))
 			}
 			if _, err := db.Exec(strings.TrimRight(sb.String(), ",")); err != nil {
 				log.Printf("failed to insert data: %v", err)

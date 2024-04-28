@@ -20,18 +20,135 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type SampleKind int32
+
+const (
+	SampleKind_VOLTAGE SampleKind = 0
+	SampleKind_CURRENT SampleKind = 1
+)
+
+// Enum value maps for SampleKind.
+var (
+	SampleKind_name = map[int32]string{
+		0: "VOLTAGE",
+		1: "CURRENT",
+	}
+	SampleKind_value = map[string]int32{
+		"VOLTAGE": 0,
+		"CURRENT": 1,
+	}
+)
+
+func (x SampleKind) Enum() *SampleKind {
+	p := new(SampleKind)
+	*p = x
+	return p
+}
+
+func (x SampleKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SampleKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_measurement_proto_enumTypes[0].Descriptor()
+}
+
+func (SampleKind) Type() protoreflect.EnumType {
+	return &file_measurement_proto_enumTypes[0]
+}
+
+func (x SampleKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SampleKind.Descriptor instead.
+func (SampleKind) EnumDescriptor() ([]byte, []int) {
+	return file_measurement_proto_rawDescGZIP(), []int{0}
+}
+
+type Measurement struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Samplekind SampleKind `protobuf:"varint,1,opt,name=samplekind,proto3,enum=protoproto.SampleKind" json:"samplekind,omitempty"`
+	Voltage    float64    `protobuf:"fixed64,2,opt,name=voltage,proto3" json:"voltage,omitempty"`
+	Rawsample  int64      `protobuf:"varint,3,opt,name=rawsample,proto3" json:"rawsample,omitempty"`
+	Epochnano  int64      `protobuf:"varint,4,opt,name=epochnano,proto3" json:"epochnano,omitempty"`
+}
+
+func (x *Measurement) Reset() {
+	*x = Measurement{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_measurement_proto_msgTypes[0]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Measurement) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Measurement) ProtoMessage() {}
+
+func (x *Measurement) ProtoReflect() protoreflect.Message {
+	mi := &file_measurement_proto_msgTypes[0]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Measurement.ProtoReflect.Descriptor instead.
+func (*Measurement) Descriptor() ([]byte, []int) {
+	return file_measurement_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *Measurement) GetSamplekind() SampleKind {
+	if x != nil {
+		return x.Samplekind
+	}
+	return SampleKind_VOLTAGE
+}
+
+func (x *Measurement) GetVoltage() float64 {
+	if x != nil {
+		return x.Voltage
+	}
+	return 0
+}
+
+func (x *Measurement) GetRawsample() int64 {
+	if x != nil {
+		return x.Rawsample
+	}
+	return 0
+}
+
+func (x *Measurement) GetEpochnano() int64 {
+	if x != nil {
+		return x.Epochnano
+	}
+	return 0
+}
+
 type Series struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Measurements []*Series_Measurement `protobuf:"bytes,1,rep,name=measurements,proto3" json:"measurements,omitempty"`
+	Measurements []*Measurement `protobuf:"bytes,1,rep,name=measurements,proto3" json:"measurements,omitempty"`
 }
 
 func (x *Series) Reset() {
 	*x = Series{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_measurement_proto_msgTypes[0]
+		mi := &file_measurement_proto_msgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -44,7 +161,7 @@ func (x *Series) String() string {
 func (*Series) ProtoMessage() {}
 
 func (x *Series) ProtoReflect() protoreflect.Message {
-	mi := &file_measurement_proto_msgTypes[0]
+	mi := &file_measurement_proto_msgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57,77 +174,14 @@ func (x *Series) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Series.ProtoReflect.Descriptor instead.
 func (*Series) Descriptor() ([]byte, []int) {
-	return file_measurement_proto_rawDescGZIP(), []int{0}
+	return file_measurement_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *Series) GetMeasurements() []*Series_Measurement {
+func (x *Series) GetMeasurements() []*Measurement {
 	if x != nil {
 		return x.Measurements
 	}
 	return nil
-}
-
-type Series_Measurement struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Voltage   int32 `protobuf:"varint,1,opt,name=voltage,proto3" json:"voltage,omitempty"`
-	Current   int32 `protobuf:"varint,2,opt,name=current,proto3" json:"current,omitempty"`
-	Epochnano int64 `protobuf:"varint,3,opt,name=epochnano,proto3" json:"epochnano,omitempty"`
-}
-
-func (x *Series_Measurement) Reset() {
-	*x = Series_Measurement{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_measurement_proto_msgTypes[1]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *Series_Measurement) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Series_Measurement) ProtoMessage() {}
-
-func (x *Series_Measurement) ProtoReflect() protoreflect.Message {
-	mi := &file_measurement_proto_msgTypes[1]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Series_Measurement.ProtoReflect.Descriptor instead.
-func (*Series_Measurement) Descriptor() ([]byte, []int) {
-	return file_measurement_proto_rawDescGZIP(), []int{0, 0}
-}
-
-func (x *Series_Measurement) GetVoltage() int32 {
-	if x != nil {
-		return x.Voltage
-	}
-	return 0
-}
-
-func (x *Series_Measurement) GetCurrent() int32 {
-	if x != nil {
-		return x.Current
-	}
-	return 0
-}
-
-func (x *Series_Measurement) GetEpochnano() int64 {
-	if x != nil {
-		return x.Epochnano
-	}
-	return 0
 }
 
 var File_measurement_proto protoreflect.FileDescriptor
@@ -135,19 +189,25 @@ var File_measurement_proto protoreflect.FileDescriptor
 var file_measurement_proto_rawDesc = []byte{
 	0x0a, 0x11, 0x6d, 0x65, 0x61, 0x73, 0x75, 0x72, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x2e, 0x70, 0x72,
 	0x6f, 0x74, 0x6f, 0x12, 0x0a, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22,
-	0xad, 0x01, 0x0a, 0x06, 0x53, 0x65, 0x72, 0x69, 0x65, 0x73, 0x12, 0x42, 0x0a, 0x0c, 0x6d, 0x65,
-	0x61, 0x73, 0x75, 0x72, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b,
-	0x32, 0x1e, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x53, 0x65,
-	0x72, 0x69, 0x65, 0x73, 0x2e, 0x4d, 0x65, 0x61, 0x73, 0x75, 0x72, 0x65, 0x6d, 0x65, 0x6e, 0x74,
-	0x52, 0x0c, 0x6d, 0x65, 0x61, 0x73, 0x75, 0x72, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x1a, 0x5f,
-	0x0a, 0x0b, 0x4d, 0x65, 0x61, 0x73, 0x75, 0x72, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x12, 0x18, 0x0a,
-	0x07, 0x76, 0x6f, 0x6c, 0x74, 0x61, 0x67, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52, 0x07,
-	0x76, 0x6f, 0x6c, 0x74, 0x61, 0x67, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x63, 0x75, 0x72, 0x72, 0x65,
-	0x6e, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05, 0x52, 0x07, 0x63, 0x75, 0x72, 0x72, 0x65, 0x6e,
-	0x74, 0x12, 0x1c, 0x0a, 0x09, 0x65, 0x70, 0x6f, 0x63, 0x68, 0x6e, 0x61, 0x6e, 0x6f, 0x18, 0x03,
-	0x20, 0x01, 0x28, 0x03, 0x52, 0x09, 0x65, 0x70, 0x6f, 0x63, 0x68, 0x6e, 0x61, 0x6e, 0x6f, 0x42,
-	0x0c, 0x5a, 0x0a, 0x2e, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x62, 0x06, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x9b, 0x01, 0x0a, 0x0b, 0x4d, 0x65, 0x61, 0x73, 0x75, 0x72, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x12,
+	0x36, 0x0a, 0x0a, 0x73, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x6b, 0x69, 0x6e, 0x64, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x0e, 0x32, 0x16, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x2e, 0x53, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x4b, 0x69, 0x6e, 0x64, 0x52, 0x0a, 0x73, 0x61, 0x6d,
+	0x70, 0x6c, 0x65, 0x6b, 0x69, 0x6e, 0x64, 0x12, 0x18, 0x0a, 0x07, 0x76, 0x6f, 0x6c, 0x74, 0x61,
+	0x67, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x01, 0x52, 0x07, 0x76, 0x6f, 0x6c, 0x74, 0x61, 0x67,
+	0x65, 0x12, 0x1c, 0x0a, 0x09, 0x72, 0x61, 0x77, 0x73, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x18, 0x03,
+	0x20, 0x01, 0x28, 0x03, 0x52, 0x09, 0x72, 0x61, 0x77, 0x73, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x12,
+	0x1c, 0x0a, 0x09, 0x65, 0x70, 0x6f, 0x63, 0x68, 0x6e, 0x61, 0x6e, 0x6f, 0x18, 0x04, 0x20, 0x01,
+	0x28, 0x03, 0x52, 0x09, 0x65, 0x70, 0x6f, 0x63, 0x68, 0x6e, 0x61, 0x6e, 0x6f, 0x22, 0x45, 0x0a,
+	0x06, 0x53, 0x65, 0x72, 0x69, 0x65, 0x73, 0x12, 0x3b, 0x0a, 0x0c, 0x6d, 0x65, 0x61, 0x73, 0x75,
+	0x72, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x17, 0x2e,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2e, 0x4d, 0x65, 0x61, 0x73, 0x75,
+	0x72, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x52, 0x0c, 0x6d, 0x65, 0x61, 0x73, 0x75, 0x72, 0x65, 0x6d,
+	0x65, 0x6e, 0x74, 0x73, 0x2a, 0x26, 0x0a, 0x0a, 0x53, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x4b, 0x69,
+	0x6e, 0x64, 0x12, 0x0b, 0x0a, 0x07, 0x56, 0x4f, 0x4c, 0x54, 0x41, 0x47, 0x45, 0x10, 0x00, 0x12,
+	0x0b, 0x0a, 0x07, 0x43, 0x55, 0x52, 0x52, 0x45, 0x4e, 0x54, 0x10, 0x01, 0x42, 0x0c, 0x5a, 0x0a,
+	0x2e, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
+	0x6f, 0x33,
 }
 
 var (
@@ -162,18 +222,21 @@ func file_measurement_proto_rawDescGZIP() []byte {
 	return file_measurement_proto_rawDescData
 }
 
+var file_measurement_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_measurement_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_measurement_proto_goTypes = []interface{}{
-	(*Series)(nil),             // 0: protoproto.Series
-	(*Series_Measurement)(nil), // 1: protoproto.Series.Measurement
+	(SampleKind)(0),     // 0: protoproto.SampleKind
+	(*Measurement)(nil), // 1: protoproto.Measurement
+	(*Series)(nil),      // 2: protoproto.Series
 }
 var file_measurement_proto_depIdxs = []int32{
-	1, // 0: protoproto.Series.measurements:type_name -> protoproto.Series.Measurement
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	0, // 0: protoproto.Measurement.samplekind:type_name -> protoproto.SampleKind
+	1, // 1: protoproto.Series.measurements:type_name -> protoproto.Measurement
+	2, // [2:2] is the sub-list for method output_type
+	2, // [2:2] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_measurement_proto_init() }
@@ -183,7 +246,7 @@ func file_measurement_proto_init() {
 	}
 	if !protoimpl.UnsafeEnabled {
 		file_measurement_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Series); i {
+			switch v := v.(*Measurement); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -195,7 +258,7 @@ func file_measurement_proto_init() {
 			}
 		}
 		file_measurement_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Series_Measurement); i {
+			switch v := v.(*Series); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -212,13 +275,14 @@ func file_measurement_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_measurement_proto_rawDesc,
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_measurement_proto_goTypes,
 		DependencyIndexes: file_measurement_proto_depIdxs,
+		EnumInfos:         file_measurement_proto_enumTypes,
 		MessageInfos:      file_measurement_proto_msgTypes,
 	}.Build()
 	File_measurement_proto = out.File
