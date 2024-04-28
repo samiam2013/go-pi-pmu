@@ -95,12 +95,12 @@ func runClient() {
 		}
 
 		series.Measurements = append(series.Measurements, measurement)
-		if len(series.Measurements) > 1024 {
-			go func(data *protobuf.Series) {
-				if err := send(series); err != nil {
-					logrus.WithError(err).Error("Failed to send series")
-				}
-			}(series) // pass it on the stack so it can't remove the reference
+		if len(series.Measurements) >= 1024 {
+			// go func(data *protobuf.Series) {
+			if err := send(series); err != nil {
+				logrus.WithError(err).Error("Failed to send series")
+			}
+			// }(series) // pass it on the stack so it can't remove the reference
 			series = &protobuf.Series{}
 		}
 	}
