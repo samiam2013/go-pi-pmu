@@ -91,7 +91,7 @@ func runClient() {
 			Samplekind: smpl.kind,
 			Voltage:    f,
 			Rawsample:  int64(smpl.data.Raw),
-			Epochnano:  time.Now().Unix(),
+			Epochnano:  time.Now().UnixNano(),
 		}
 
 		series.Measurements = append(series.Measurements, measurement)
