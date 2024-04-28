@@ -51,12 +51,12 @@ func main() {
 			}
 
 			// build an insert for this data
-			queryPrefix := "INSERT INTO pmu(sample_kind, voltage, raw_sample, epoch_nano) VALUES"
+			queryPrefix := "INSERT INTO pmu(sample_kind, nano_volts, raw_sample, epoch_nano) VALUES"
 			var sb strings.Builder
 			for _, measurement := range series.Measurements {
-				sb.WriteString(fmt.Sprintf("('%s', %f, %d, %d),",
+				sb.WriteString(fmt.Sprintf("('%s', %d, %d, %d),",
 					strings.ToLower(measurement.Samplekind.String()),
-					measurement.Voltage,
+					measurement.Nanovolts,
 					measurement.Rawsample,
 					measurement.Epochnano))
 			}
@@ -88,6 +88,8 @@ func migrateSchema(db *sql.DB) error {
 		4: "CREATE TYPE measurement_sample_kind AS ENUM ('current', 'voltage')",
 		5: "ALTER TABLE pmu ADD COLUMN sample_kind measurement_sample_kind",
 		6: "ALTER TABLE pmu ADD COLUMN raw_sample BIGINT",
+		7: "ALTER TABLE pmu DROP COLUMN voltage",
+		8: "ALTER TABLE pmu ADD COLUMN nano_volts BIGINT",
 	}
 	for i := int64(1); true; i++ {
 		v, ok := migrations[i]

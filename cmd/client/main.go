@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/samiam2013/go-pi-pmu/measurement/protobuf"
@@ -46,14 +44,14 @@ func runClient() {
 	}
 
 	// ADC pins 0 & 1 - current reading
-	cPin, err := adc.PinForChannel(ads1x15.Channel0Minus1, 1*physic.Volt, 120*physic.Hertz, ads1x15.SaveEnergy)
+	cPin, err := adc.PinForChannel(ads1x15.Channel0Minus1, 1*physic.Volt, 240*physic.Hertz, ads1x15.SaveEnergy)
 	if err != nil {
 		logrus.Fatalln(err)
 	}
 	defer func() { _ = cPin.Halt() }()
 
 	// ADC pin 2 - voltage reading
-	vPin, err := adc.PinForChannel(ads1x15.Channel2, 3*physic.Volt, 120*physic.Hertz, ads1x15.SaveEnergy)
+	vPin, err := adc.PinForChannel(ads1x15.Channel2, 3*physic.Volt, 240*physic.Hertz, ads1x15.SaveEnergy)
 	if err != nil {
 		logrus.Fatalln(err)
 	}
@@ -61,12 +59,6 @@ func runClient() {
 
 	vCont := vPin.ReadContinuous()
 	cCont := cPin.ReadContinuous()
-
-	type sample struct {
-		data     analog.Sample
-		kind     protobuf.SampleKind
-		UnixNano int64
-	}
 
 	funnel := make(chan sample, 64)
 	go func(ret chan sample) {
@@ -80,34 +72,40 @@ func runClient() {
 		}
 	}(funnel)
 
-	series := &protobuf.Series{}
+	sampleBuf := make([]sample, 1024)
 	for smpl := range funnel {
-		// logrus.Printf("%+v", smpl)
-		f, err := strconv.ParseFloat(strings.TrimRight(smpl.data.V.String(), "µmV"), 64)
-		if err != nil {
-			logrus.WithError(err).Error("Could not parse voltage: ", smpl.data.V.String())
-		}
-		measurement := &protobuf.Measurement{
-			Samplekind: smpl.kind,
-			Voltage:    f,
-			Rawsample:  int64(smpl.data.Raw),
-			Epochnano:  time.Now().UnixNano(),
-		}
+		sampleBuf = append(sampleBuf, smpl)
 
-		series.Measurements = append(series.Measurements, measurement)
-		if len(series.Measurements) >= 1024 {
+		if len(sampleBuf) >= 1024 {
 			// go func(data *protobuf.Series) {
-			if err := send(series); err != nil {
+			if err := send(sampleBuf); err != nil {
 				logrus.WithError(err).Error("Failed to send series")
 			}
 			// }(series) // pass it on the stack so it can't remove the reference
-			series = &protobuf.Series{}
+			sampleBuf = make([]sample, 1024)
 		}
 	}
 }
 
-func send(data *protobuf.Series) error {
-	reqB, err := proto.Marshal(data)
+type sample struct {
+	data     analog.Sample
+	kind     protobuf.SampleKind
+	UnixNano int64
+}
+
+func send(seriesData []sample) error {
+	series := &protobuf.Series{}
+	for _, s := range seriesData {
+		series.Measurements = append(series.Measurements,
+			&protobuf.Measurement{
+				Nanovolts:  int64(s.data.V),
+				Rawsample:  int64(s.data.Raw),
+				Epochnano:  s.UnixNano,
+				Samplekind: s.kind,
+			})
+	}
+
+	reqB, err := proto.Marshal(series)
 	if err != nil {
 		return fmt.Errorf("failed marshalling series for send: %w", err)
 	}

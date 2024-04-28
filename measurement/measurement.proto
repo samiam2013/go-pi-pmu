@@ -14,10 +14,10 @@ enum SampleKind {
 }
 
 message Measurement {
-  SampleKind samplekind = 1;
-  double voltage = 2;
-  int64 rawsample = 3;
-  int64 epochnano = 4;
+  int64 nanovolts = 1;
+  int64 rawsample = 2;
+  int64 epochnano = 3;
+  SampleKind samplekind = 4;
 }
 
 message Series {
