@@ -44,14 +44,14 @@ func runClient() {
 	}
 
 	// ADC pins 0 & 1 - current reading
-	cPin, err := adc.PinForChannel(ads1x15.Channel0Minus1, 1*physic.Volt, 240*physic.Hertz, ads1x15.SaveEnergy)
+	cPin, err := adc.PinForChannel(ads1x15.Channel0Minus1, 1*physic.Volt, 150*physic.Hertz, ads1x15.SaveEnergy)
 	if err != nil {
 		logrus.Fatalln(err)
 	}
 	defer func() { _ = cPin.Halt() }()
 
 	// ADC pin 2 - voltage reading
-	vPin, err := adc.PinForChannel(ads1x15.Channel2, 3*physic.Volt, 240*physic.Hertz, ads1x15.SaveEnergy)
+	vPin, err := adc.PinForChannel(ads1x15.Channel2, 3*physic.Volt, 150*physic.Hertz, ads1x15.SaveEnergy)
 	if err != nil {
 		logrus.Fatalln(err)
 	}
@@ -72,17 +72,17 @@ func runClient() {
 		}
 	}(funnel)
 
-	sampleBuf := make([]sample, 1024)
+	sampleBuf := make([]sample, 0, 1024)
 	for smpl := range funnel {
 		sampleBuf = append(sampleBuf, smpl)
-
+		// logrus.Infof("sample size %d", len(sampleBuf))
 		if len(sampleBuf) >= 1024 {
-			// go func(data *protobuf.Series) {
-			if err := send(sampleBuf); err != nil {
-				logrus.WithError(err).Error("Failed to send series")
-			}
-			// }(series) // pass it on the stack so it can't remove the reference
-			sampleBuf = make([]sample, 1024)
+			go func(samples []sample) {
+				if err := send(samples); err != nil {
+					logrus.WithError(err).Error("Failed to send series")
+				}
+			}(sampleBuf[:]) // pass a copy on the stack so it can't remove the reference
+			sampleBuf = make([]sample, 0, 1024)
 		}
 	}
 }
