@@ -26,7 +26,6 @@ func runClient() {
 		logrus.Fatal(err)
 	}
 
-	// TODO: set which bus is which
 	vBus, err := i2creg.Open("0")
 	if err != nil {
 		logrus.Fatalf("failed to open I²C: %v", err)
@@ -129,7 +128,7 @@ func send(seriesData []sample) error {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("faild to execude request for send: %w", err)
+		return fmt.Errorf("failed to execute request for send: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("response code after sending not ok: %w", err)
