@@ -18,10 +18,6 @@ import (
 )
 
 func main() {
-	// flag allowing testing mode where it creates it's own data
-	// test := pflag.BoolP("test", "t", false, "testing mode - send random measurements")
-	// pflag.Parse()
-
 	runClient()
 }
 
@@ -30,28 +26,39 @@ func runClient() {
 		logrus.Fatal(err)
 	}
 
-	// Open default I²C bus.
-	bus, err := i2creg.Open("")
+	// TODO: set which bus is which
+	vBus, err := i2creg.Open("0")
 	if err != nil {
 		logrus.Fatalf("failed to open I²C: %v", err)
 	}
-	defer func() { _ = bus.Close() }()
+	defer func() { _ = vBus.Close() }()
 
-	// Create a new ADS1115 ADC.
-	adc, err := ads1x15.NewADS1115(bus, &ads1x15.DefaultOpts)
+	cBus, err := i2creg.Open("1")
+	if err != nil {
+		logrus.Fatalf("failed to open I²C: %v", err)
+	}
+	defer func() { _ = vBus.Close() }()
+
+	// Create a new ADS1115 ADC, one for voltage, one for current
+	cADC, err := ads1x15.NewADS1115(cBus, &ads1x15.DefaultOpts)
+	if err != nil {
+		logrus.Fatalln(err)
+	}
+
+	vADC, err := ads1x15.NewADS1115(vBus, &ads1x15.DefaultOpts)
 	if err != nil {
 		logrus.Fatalln(err)
 	}
 
 	// ADC pins 0 & 1 - current reading
-	cPin, err := adc.PinForChannel(ads1x15.Channel0Minus1, 1*physic.Volt, 150*physic.Hertz, ads1x15.SaveEnergy)
+	cPin, err := cADC.PinForChannel(ads1x15.Channel0Minus1, 1*physic.Volt, 512*physic.Hertz, ads1x15.BestQuality)
 	if err != nil {
 		logrus.Fatalln(err)
 	}
 	defer func() { _ = cPin.Halt() }()
 
 	// ADC pin 2 - voltage reading
-	vPin, err := adc.PinForChannel(ads1x15.Channel2, 3*physic.Volt, 150*physic.Hertz, ads1x15.SaveEnergy)
+	vPin, err := vADC.PinForChannel(ads1x15.Channel2, 5*physic.Volt, 512*physic.Hertz, ads1x15.BestQuality)
 	if err != nil {
 		logrus.Fatalln(err)
 	}
@@ -60,7 +67,7 @@ func runClient() {
 	vCont := vPin.ReadContinuous()
 	cCont := cPin.ReadContinuous()
 
-	funnel := make(chan sample, 64)
+	funnel := make(chan sample, 1024000)
 	go func(ret chan sample) {
 		for reading := range vCont {
 			ret <- sample{kind: protobuf.SampleKind_VOLTAGE, data: reading, UnixNano: time.Now().UnixNano()}
@@ -72,12 +79,14 @@ func runClient() {
 		}
 	}(funnel)
 
-	sampleBuf := make([]sample, 0, 1024)
-	for smpl := range funnel {
-		sampleBuf = append(sampleBuf, smpl)
+	sampleBuf := make([]sample, 0, 10240)
+	for s := range funnel {
+		sampleBuf = append(sampleBuf, s)
 		// logrus.Infof("sample size %d", len(sampleBuf))
-		if len(sampleBuf) >= 1024 {
+		if len(sampleBuf) >= 10240 {
 			go func(samples []sample) {
+				logrus.Infof("sending series starting with %+v", samples[0])
+				logrus.Infof("series ending with %+v", samples[10239])
 				if err := send(samples); err != nil {
 					logrus.WithError(err).Error("Failed to send series")
 				}
@@ -126,8 +135,4 @@ func send(seriesData []sample) error {
 		return fmt.Errorf("response code after sending not ok: %w", err)
 	}
 	return nil
-}
-
-func runTestClient() {
-	// TODO: maybe re-implement this?
 }
