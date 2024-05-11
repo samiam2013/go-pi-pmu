@@ -50,14 +50,14 @@ func runClient() {
 	}
 
 	// ADC pins 0 & 1 - current reading
-	cPin, err := cADC.PinForChannel(ads1x15.Channel0Minus1, 1*physic.Volt, 512*physic.Hertz, ads1x15.BestQuality)
+	cPin, err := cADC.PinForChannel(ads1x15.Channel0Minus1, 1*physic.Volt, 860*physic.Hertz, ads1x15.BestQuality)
 	if err != nil {
 		logrus.Fatalln(err)
 	}
 	defer func() { _ = cPin.Halt() }()
 
 	// ADC pin 2 - voltage reading
-	vPin, err := vADC.PinForChannel(ads1x15.Channel2, 5*physic.Volt, 512*physic.Hertz, ads1x15.BestQuality)
+	vPin, err := vADC.PinForChannel(ads1x15.Channel2, 5*physic.Volt, 860*physic.Hertz, ads1x15.BestQuality)
 	if err != nil {
 		logrus.Fatalln(err)
 	}
