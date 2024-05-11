@@ -99,6 +99,64 @@ func main() {
 			frequency := (float64(zeroCrossings) / 2.0) / d.Seconds()
 			logrus.Infof("Frequency: %.2f", frequency)
 
+			cycleTimeAtFreqNS := int64(float64(time.Second.Nanoseconds()) / frequency)
+
+			// do an analysis of power factor
+			// loop over the data, when you get to a voltage peak, find the next current peak
+			// 	store the distance between the peaks in it's own slice
+			var olderVoltage, oldVoltage *protobuf.Measurement
+			var olderCurrent, oldCurrent *protobuf.Measurement
+			lagIntervalsNS := make([]int64, 0)
+			for i := 0; i < len(series.Measurements); i++ {
+				m := series.Measurements[i]
+				if olderVoltage == nil || oldVoltage == nil || oldCurrent == nil || olderCurrent == nil {
+					// do nothing
+				} else if m.Samplekind == protobuf.SampleKind_VOLTAGE &&
+					m.Rawsample < oldVoltage.Rawsample &&
+					oldVoltage.Rawsample > olderVoltage.Rawsample {
+					vPeakTime := oldVoltage.Epochnano
+					for j := i; i < len(series.Measurements); j++ {
+						i++
+						m := series.Measurements[j]
+						if m.Samplekind != protobuf.SampleKind_CURRENT || m.Epochnano < vPeakTime {
+							continue
+						}
+						if m.Epochnano > vPeakTime+cycleTimeAtFreqNS {
+							break
+						}
+						// logrus.Infof("current: %d, old: %d, older: %d", m.Rawsample, oldCurrent.Rawsample, olderCurrent.Rawsample)
+						if m.Rawsample < oldCurrent.Rawsample && oldCurrent.Rawsample >= olderCurrent.Rawsample {
+							// we've found the second peak, old current
+							cPeakTime := oldCurrent.Epochnano
+							diff := cPeakTime - vPeakTime
+							lagIntervalsNS = append(lagIntervalsNS, diff)
+							break
+						}
+					}
+
+				}
+				if m.Samplekind == protobuf.SampleKind_CURRENT {
+					olderCurrent = oldCurrent
+					oldCurrent = m
+				} else {
+					olderVoltage = oldVoltage
+					oldVoltage = m
+				}
+			}
+			// logrus.Infof("sample times: %+v", lagIntervalsNS)
+			if len(lagIntervalsNS) == 0 {
+				logrus.Warnf("no lag intervals found")
+			} else {
+				var sumLagNS int64 = 0
+				for i := 0; i < len(lagIntervalsNS); i++ {
+					sumLagNS += lagIntervalsNS[i]
+				}
+				avgLagNS := sumLagNS / int64(len(lagIntervalsNS))
+				// logrus.Infof("sum lag ns: %d, avg lag ns: %d, cycle time at freq ns %d", sumLagNS, avgLagNS, int64(cycleTimeAtFreq))
+				phaseAngleRad := (float64(avgLagNS) / float64(cycleTimeAtFreqNS)) * 2.0
+				logrus.Infof("Phase angle estimate: %f, %.1f degrees ", phaseAngleRad, phaseAngleRad*(180/math.Pi))
+			}
+
 			// build an insert for this data
 			queryPrefix := "INSERT INTO pmu(sample_kind, nano_volts, raw_sample, epoch_nano) VALUES"
 			var sb strings.Builder
