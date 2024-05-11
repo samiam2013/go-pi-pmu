@@ -5,9 +5,12 @@
         "Infof",
         "logrus",
         "Nanovolts",
+        "proto",
         "protobuf",
+        "protoc",
         "Rawsample",
         "samiam",
-        "sirupsen"
+        "sirupsen",
+        "sslmode"
     ]
 }

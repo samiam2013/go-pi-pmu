@@ -64,7 +64,7 @@ func main() {
 			if _, err := db.Exec(query); err != nil {
 				logrus.WithError(err).WithField("query", query).Error("failed to insert data")
 			}
-			logrus.Infof("Inserted %d measurments.", lenMeasurements)
+			logrus.Infof("Inserted %d measurements.", lenMeasurements)
 		}),
 	}
 	if err := srv.ListenAndServe(); err != nil {
