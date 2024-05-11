@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/samiam2013/go-pi-pmu/measurement/protobuf"
 	"github.com/sirupsen/logrus"
@@ -49,6 +51,53 @@ func main() {
 				logrus.Error("No measurements in decoded series")
 				return
 			}
+
+			// do analysis of frequency
+			start := series.Measurements[0].Epochnano
+			i, min, max, vCount, sum := int64(0), int64(math.MaxInt64), int64(math.MinInt64), int64(0), int64(0)
+			nsInSecond := 1_000_000_000
+			for time := start; time < (start + int64(nsInSecond)); {
+				m := series.Measurements[i]
+				if m.Samplekind == protobuf.SampleKind_CURRENT {
+					i++
+					continue
+				}
+				time = m.Epochnano
+				// logrus.Infof("time: ", time)
+				rs := m.Rawsample
+				if rs > max {
+					max = rs
+				}
+				if rs < min {
+					min = rs
+				}
+				sum += rs
+				vCount++
+				i++
+			}
+			// logrus.Infof("end of first sampling loop")
+			average := sum / vCount
+			// logrus.Infof("min: %d, max %d, avg %d, count: %d", min, max, average, i)
+
+			zeroCrossings := int64(0)
+			lastSample := series.Measurements[0].Rawsample
+			for i := 1; i < len(series.Measurements); i++ {
+				m := series.Measurements[i]
+				if m.Samplekind == protobuf.SampleKind_CURRENT {
+					continue
+				}
+				rs := m.Rawsample
+				if (lastSample > average && rs <= average) ||
+					(lastSample < average && rs >= average) {
+					zeroCrossings++
+				}
+				lastSample = rs
+			}
+			// logrus.Info("end of second sampling loop")
+			d := time.Duration(series.Measurements[len(series.Measurements)-1].Epochnano -
+				series.Measurements[0].Epochnano)
+			frequency := (float64(zeroCrossings) / 2.0) / d.Seconds()
+			logrus.Infof("Frequency: %.2f", frequency)
 
 			// build an insert for this data
 			queryPrefix := "INSERT INTO pmu(sample_kind, nano_volts, raw_sample, epoch_nano) VALUES"
