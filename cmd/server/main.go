@@ -115,8 +115,7 @@ func main() {
 					m.Rawsample < oldVoltage.Rawsample &&
 					oldVoltage.Rawsample > olderVoltage.Rawsample {
 					vPeakTime := oldVoltage.Epochnano
-					for j := i; i < len(series.Measurements); j++ {
-						i++
+					for j := i; i < len(series.Measurements); func() { j++; i++ }() {
 						m := series.Measurements[j]
 						if m.Samplekind != protobuf.SampleKind_CURRENT || m.Epochnano < vPeakTime {
 							continue
